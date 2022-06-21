@@ -1,0 +1,19 @@
+{
+  "name": "ipfs-metrics-collector",
+  "version": "0.0.0",
+  "description": "service that receives events from ipfs-elastic-provider and keeps track of metrics useful for system monitoring",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ipfs-elastic-provider/metrics-collector.git"
+  },
+  "author": "",
+  "license": "Apache-2.0 OR MIT",
+  "bugs": {
+    "url": "https://github.com/ipfs-elastic-provider/metrics-collector/issues"
+  },
+  "homepage": "https://github.com/ipfs-elastic-provider/metrics-collector#readme"
+}
