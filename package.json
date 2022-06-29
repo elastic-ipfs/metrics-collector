@@ -1,10 +1,11 @@
 {
+  "type": "module",
   "name": "ipfs-metrics-collector",
   "version": "0.0.0",
   "description": "service that receives events from ipfs-elastic-provider and keeps track of metrics useful for system monitoring",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "c8 ava"
   },
   "repository": {
     "type": "git",
@@ -15,5 +16,12 @@
   "bugs": {
     "url": "https://github.com/ipfs-elastic-provider/metrics-collector/issues"
   },
-  "homepage": "https://github.com/ipfs-elastic-provider/metrics-collector#readme"
+  "homepage": "https://github.com/ipfs-elastic-provider/metrics-collector#readme",
+  "devDependencies": {
+    "ava": "^4.3.0",
+    "c8": "^7.11.3"
+  },
+  "dependencies": {
+    "streaming-iterables": "^7.0.4"
+  }
 }
