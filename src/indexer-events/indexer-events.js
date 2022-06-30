@@ -28,6 +28,7 @@ const ajv = ajvFormats(new Ajv());
  * @param {{schema: JSONSchemaType<Type>}} typeDefinition
  * @param {unknown} instance
  * @template Type
+ * @returns {instance is Type}
  */
 export function isValid(typeDefinition, instance) {
   const validate = ajv.compile(typeDefinition.schema);
@@ -64,7 +65,7 @@ export class IndexerNotified {
   static schema = {
     type: "object",
     properties: {
-      byteLength: { type: "number" },
+      byteLength: { type: "integer", minimum: 0 },
       startTime: { type: "string", format: "date-time" },
       type: { type: "string", const: /** @type {const} */ ("IndexerNotified") },
       uri: { type: "string", format: "uri" },
