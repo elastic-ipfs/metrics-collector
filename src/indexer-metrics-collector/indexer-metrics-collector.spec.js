@@ -9,13 +9,19 @@ test("can send event requests to IndexerMetricsCollector and then request metric
   const event1 = jsf.generate(
     /** @type {import('json-schema-faker').Schema} */ (IndexerNotified.schema)
   );
-  const request = new Request('https://example.com/events/', {
+  // submit an event
+  const eventSubmissionRequest = new Request('https://example.com/events', {
     method: 'post',
     body: JSON.stringify(event1),
     headers: {
         'content-type': 'application/json',
     },
   })
-  const response = await collector.fetch(request)
-  t.is(response.status, 202)
+  const eventSubmissionResponse = await collector.fetch(eventSubmissionRequest)
+  t.is(eventSubmissionResponse.status, 202)
+
+  // fetch metrics
+  const metricsResponse = await collector.fetch(new Request('https://example.com/metrics'))
+  t.is(metricsResponse.status, 200)
+  // todo - ensure this has serialized prometheus metrics like we'd expect
 });

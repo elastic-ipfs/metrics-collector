@@ -1,19 +1,22 @@
 import { Router } from 'itty-router';
 import { IndexerNotified } from '../indexer-events/indexer-events.js';
 import { isValid } from '../schema.js';
-import { Response } from "@web-std/fetch";
+import { Request, Response } from "@web-std/fetch";
 
 export class IndexerMetricsCollector {
     get router() {
         const router = Router()
-        router.post("/events/", PostEventsRoute())
+        router.post("/events", PostEventsRoute())
+        router.get("/metrics", GetMetricsRoute())
         return router
     }
     /** 
      * @param {Request} request
+     * @returns {Promise<Response>}
      */
-    fetch(request) {
-        return this.router.handle(request)
+    async fetch(request) {
+        const response = await this.router.handle(request)
+        return response || new Response('route not found', { status: 404 })
     }
 }
 
@@ -39,5 +42,15 @@ function PostEventsRoute() {
         const event = requestBody
         // console.log('PostEventsRoute got event', event)
         return new Response('got event', { status: 202 })
+    }
+}
+
+function GetMetricsRoute() {
+    /**
+     * @param {Request} request 
+     * @returns {Promise<Response>}
+     */
+     return async (request) => {
+        return new Response('todo metrics', { status: 200 })
     }
 }
