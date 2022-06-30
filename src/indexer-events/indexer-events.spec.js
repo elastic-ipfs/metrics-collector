@@ -1,34 +1,33 @@
-import { test } from "../testing.js"
+import { test } from "../testing.js";
+import { IndexerNotified, isValid } from "./indexer-events.js";
 
-/**
- * Determine whether the provided object is a valid instance of an event type
- * @param {IndexerNotified} typeDefinition
- * @param {unknown} instance
- */
-function isValid(
-    typeDefinition,
-    instance,
-) {
-    return false
-}
+const exampleImageUri =
+  "https://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy.ipfs.nftstorage.link/";
 
-/**
- * Validate a message to determine whether it is an IndexerNotified event
- * @param {unknown} event 
- * @returns {boolean}
- */
-function validateIndexerNotified(event) {
-    return isValid(IndexerNotified, event)
-}
+test("can create an IndexerNotified event", async (t) => {
+  const sampleIndexerNotified = new IndexerNotified(
+    exampleImageUri,
+    new Date()
+  );
+  t.assert(typeof sampleIndexerNotified.startTime, "string");
+  t.assert(typeof sampleIndexerNotified.uri, "string");
+  t.is(sampleIndexerNotified.type, "IndexerNotified");
+});
 
-class IndexerNotified {
-    static validate = validateIndexerNotified
-}
+test("can validate an IndexerNotified event", async (t) => {
+  t.is(isValid(IndexerNotified, { type: "IndexerNotified" }), false);
 
-test('can create an IndexerNotified event', async (t) => {
-    t.is(isValid(IndexerNotified, {}), false)
-    const sampleIndexerNotified = {
-        type: "IndexerNotified",
-    }
-    t.is(isValid(IndexerNotified, sampleIndexerNotified), false)
-})
+  t.is(
+    isValid(IndexerNotified, {
+      startTime: new Date().toISOString(),
+      type: "IndexerNotified",
+      uri: exampleImageUri,
+    }),
+    true
+  );
+
+  t.is(
+    isValid(IndexerNotified, new IndexerNotified(exampleImageUri, new Date())),
+    true
+  );
+});
