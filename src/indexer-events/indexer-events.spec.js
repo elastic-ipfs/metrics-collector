@@ -1,5 +1,6 @@
+import { isValid } from "../schema.js";
 import { test } from "../testing.js";
-import { IndexerNotified, isValid } from "./indexer-events.js";
+import { IndexerNotified } from "./indexer-events.js";
 
 const exampleImageUri =
   "https://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy.ipfs.nftstorage.link/";

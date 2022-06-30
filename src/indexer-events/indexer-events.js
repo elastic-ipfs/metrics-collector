@@ -1,15 +1,6 @@
-import Ajv from "ajv/dist/ajv.js";
-import ajvFormats from "ajv-formats";
-
 /**
  * @typedef {import('ajv').JSONSchemaType<Type>} JSONSchemaType
  * @template Type
- */
-
-/**
- * @typedef TypeTagged
- * @property {TypeName} type
- * @template TypeName
  */
 
 /**
@@ -19,21 +10,6 @@ import ajvFormats from "ajv-formats";
  * @property {string} uri - uri of item to be indexed
  * @property {string} startTime - time at which indexer was notified
  */
-
-/** Common ajv instance for schema validation */
-const ajv = ajvFormats(new Ajv());
-
-/**
- * Determine whether the provided object is a valid instance of an event type
- * @param {{schema: JSONSchemaType<Type>}} typeDefinition
- * @param {unknown} instance
- * @template Type
- * @returns {instance is Type}
- */
-export function isValid(typeDefinition, instance) {
-  const validate = ajv.compile(typeDefinition.schema);
-  return validate(instance);
-}
 
 /**
  * Event that represents the ipfs indexer being notified of a new file to index.

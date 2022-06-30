@@ -1,9 +1,9 @@
 import { test } from "../testing.js";
-import jsf from 'json-schema-faker'
-import { IndexerNotified, isValid } from "./indexer-events.js";
+import { IndexerNotified } from "./indexer-events.js";
 import { collect, map, pipeline, take } from "streaming-iterables";
 import { Histogram, exponentialBuckets } from "prom-client"
 import produce from "immer"
+import { generate } from "../schema.js";
 
 test('can create a byteLength histogram from stream of IndexerNotified events', async t => {
     const histogram = new Histogram({
@@ -29,9 +29,6 @@ function * createIndexerNotifiedStream (byteLengthMax=Infinity) {
         return schema
     })
     while (true) {
-        const fake = jsf.generate(/** @type {import('json-schema-faker').Schema} */ (modifiedSchema))
-        if (isValid(IndexerNotified, fake)) {
-            yield fake
-        }
+        yield generate(modifiedSchema)
     }
 }
