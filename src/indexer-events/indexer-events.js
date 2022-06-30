@@ -34,8 +34,11 @@ export function isValid(typeDefinition, instance) {
 }
 
 /**
- * @property {string} uri
- * @property {string} startTime
+ * Event that represents the ipfs indexer being notified of a new file to index.
+ * It's usually expected that the ipfs system will then retrieve the file,
+ * start indexing it, and eventually emit an event when indexing is complete.
+ * @property {string} uri - uri of file for which indexing is being requested
+ * @property {string} startTime - datetime at which the indexer was notified
  */
 export class IndexerNotified {
   type = /** @type {const} */ ("IndexerNotified")
