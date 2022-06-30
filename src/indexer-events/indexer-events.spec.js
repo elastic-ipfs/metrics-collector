@@ -7,6 +7,7 @@ const exampleImageUri =
 test("can create an IndexerNotified event", async (t) => {
   const sampleIndexerNotified = new IndexerNotified(
     exampleImageUri,
+    1,
     new Date()
   );
   t.assert(typeof sampleIndexerNotified.startTime, "string");
@@ -19,6 +20,7 @@ test("can validate an IndexerNotified event", async (t) => {
 
   t.is(
     isValid(IndexerNotified, {
+      byteLength: 1,
       startTime: new Date().toISOString(),
       type: "IndexerNotified",
       uri: exampleImageUri,
@@ -27,7 +29,7 @@ test("can validate an IndexerNotified event", async (t) => {
   );
 
   t.is(
-    isValid(IndexerNotified, new IndexerNotified(exampleImageUri, new Date())),
+    isValid(IndexerNotified, new IndexerNotified(exampleImageUri, 1, new Date())),
     true
   );
 });
