@@ -17,23 +17,21 @@
  * start indexing it, and eventually emit an event when indexing is complete.
  */
 export class IndexerNotified {
-  type = /** @type {const} */ ("IndexerNotified")
+  type = /** @type {const} */ ("IndexerNotified");
   /**
    * @param {number} byteLength
    * @param {string} uri
-   * @param {Date} startTime 
+   * @param {Date} startTime
    */
-  constructor(
-    uri,
-    byteLength,
-    startTime
-  ) {
-    this.uri = uri
-    this.byteLength = byteLength
-    this.startTime = startTime.toISOString()
+  constructor(uri, byteLength, startTime) {
+    this.uri = uri;
+    this.byteLength = byteLength;
+    this.startTime = startTime.toISOString();
     // assert this @implements IndexerNotifiedType
-    void (/** @type {IndexerNotifiedType} */ (this))
+    // eslint-disable-next-line no-void
+    void (/** @type {IndexerNotifiedType} */ (this));
   }
+
   /**
    * @type {JSONSchemaType<IndexerNotified>}
    * @template Type

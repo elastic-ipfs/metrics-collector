@@ -5,7 +5,7 @@ import { IndexerNotified } from "./indexer-events.js";
 const exampleImageUri =
   "https://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy.ipfs.nftstorage.link/";
 
-test("can create an IndexerNotified event", async (t) => {
+test("can create an IndexerNotified event", (t) => {
   const sampleIndexerNotified = new IndexerNotified(
     exampleImageUri,
     1,
@@ -16,7 +16,7 @@ test("can create an IndexerNotified event", async (t) => {
   t.is(sampleIndexerNotified.type, "IndexerNotified");
 });
 
-test("can validate an IndexerNotified event", async (t) => {
+test("can validate an IndexerNotified event", (t) => {
   t.is(isValid(IndexerNotified, { type: "IndexerNotified" }), false);
 
   t.is(
@@ -30,7 +30,10 @@ test("can validate an IndexerNotified event", async (t) => {
   );
 
   t.is(
-    isValid(IndexerNotified, new IndexerNotified(exampleImageUri, 1, new Date())),
+    isValid(
+      IndexerNotified,
+      new IndexerNotified(exampleImageUri, 1, new Date())
+    ),
     true
   );
 });

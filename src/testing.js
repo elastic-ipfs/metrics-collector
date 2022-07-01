@@ -1,3 +1,3 @@
-import avaTest from "ava"
+import avaTest from "ava";
 
-export const test = avaTest
+export const test = avaTest;
