@@ -1,14 +1,12 @@
 import { test } from "../testing.js";
 import { IndexerMetricsCollector } from "./indexer-metrics-collector.js";
-import jsf from "json-schema-faker";
 import { IndexerNotified } from "../indexer-events/indexer-events.js";
 import { Request } from "@web-std/fetch";
+import { generate } from "../schema.js";
 
 test("can send event requests to IndexerMetricsCollector and then request metrics", async (t) => {
   const collector = new IndexerMetricsCollector();
-  const event1 = jsf.generate(
-    /** @type {import('json-schema-faker').Schema} */ (IndexerNotified.schema)
-  );
+  const event1 = generate(IndexerNotified.schema)
   // submit an event
   const eventSubmissionRequest = new Request('https://example.com/events', {
     method: 'post',
