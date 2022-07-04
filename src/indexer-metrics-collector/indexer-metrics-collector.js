@@ -3,21 +3,39 @@ import { IndexerNotified } from "../indexer-events/indexer-events.js";
 import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
 import { Histogram, Registry } from "prom-client";
+// import assert from "node:assert";
+
+/**
+ * @typedef {import('@miniflare/durable-objects').DurableObjectStorage} DurableObjectStorage
+ */
 
 export class IndexerMetricsCollector {
-  constructor() {
-    this.metrics = new IndexerMetricsPrometheusContext();
-    this.router = this.createRouter(this.metrics);
+  /**
+   * @param {DurableObjectStorage} storage
+   */
+  constructor(storage) {
+    const metrics = this.createMetricsFromStorage(storage);
+    this.router = this.createRouter(metrics);
   }
 
   /**
-   * @param {IndexerMetricsPrometheusContext} metrics
-   * @returns {Router}
+   * @param {DurableObjectStorage} storage
+   * @returns {Promise<IndexerMetricsPrometheusContext>}
    */
-  createRouter(metrics) {
+  async createMetricsFromStorage(storage) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+    const storedString = await storage.get("prometheusMetricsString");
+    return new IndexerMetricsPrometheusContext();
+  }
+
+  /**
+   * @param {Promise<IndexerMetricsPrometheusContext>} metrics
+   * @returns {Promise<Router>}
+   */
+  async createRouter(metrics) {
     const router = Router();
-    router.post("/events", PostEventsRoute(metrics));
-    router.get("/metrics", GetMetricsRoute(metrics));
+    router.post("/events", PostEventsRoute(await metrics));
+    router.get("/metrics", GetMetricsRoute(await metrics));
     return router;
   }
 
@@ -28,7 +46,7 @@ export class IndexerMetricsCollector {
   async fetch(request) {
     /** @type {Response|undefined} */
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const response = await this.router.handle(request);
+    const response = await (await this.router).handle(request);
     return response || new Response("route not found", { status: 404 });
   }
 }
