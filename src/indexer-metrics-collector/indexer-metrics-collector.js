@@ -2,8 +2,20 @@ import { Router } from "itty-router";
 import { IndexerNotified } from "../indexer-events/indexer-events.js";
 import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
-import { Histogram, Registry } from "prom-client";
+import { Histogram, linearBuckets, Registry } from "prom-client";
 import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
+
+/**
+ * buckets for bytes to use for fileSize histogram.
+ * This will only be used the first time the histogram is created, i.e. when storage is empty.
+ * After the initial run, storage will not be empty, and the histogram will be deserialized according to the buckets from storage.
+ * So you probably don't want to change this constant.
+ * If you want to change the buckets, you may also want to change the fileSizeHistogramKey
+ */
+const DEFAULT_FILESIZE_BYTES_BUCKETS = [
+  1 * 1e6,
+  ...linearBuckets(10 * 1e6, 10 * 1e6, 10),
+];
 
 /**
  * @typedef {import('@miniflare/durable-objects').DurableObjectStorage} DurableObjectStorage
@@ -37,7 +49,12 @@ export class IndexerMetricsCollector {
           ),
           [registry]
         )
-      : undefined;
+      : new Histogram({
+          name: "file_size_bytes",
+          help: "file seen with certain size",
+          registers: [registry],
+          buckets: DEFAULT_FILESIZE_BYTES_BUCKETS,
+        });
     return new IndexerMetricsPrometheusContext(
       registry,
       sizeHistogramFromStorage
@@ -126,16 +143,10 @@ function PostEventsRoute(metricsPromise, storeMetrics) {
 
 class IndexerMetricsPrometheusContext {
   /**
+   * @param {import('prom-client').Registry} registry
    * @param {import('prom-client').Histogram<string>} fileSize
    */
-  constructor(
-    registry = new Registry(),
-    fileSize = new Histogram({
-      name: "file_size_bytes",
-      help: "file seen with certain size",
-      registers: [registry],
-    })
-  ) {
+  constructor(registry = new Registry(), fileSize) {
     this.registry = registry;
     this.fileSize = fileSize;
   }
