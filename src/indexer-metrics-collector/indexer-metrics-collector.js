@@ -3,6 +3,7 @@ import { IndexerNotified } from "../indexer-events/indexer-events.js";
 import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
 import { Histogram, Registry } from "prom-client";
+import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
 // import assert from "node:assert";
 
 /**
@@ -12,10 +13,13 @@ import { Histogram, Registry } from "prom-client";
 export class IndexerMetricsCollector {
   /**
    * @param {DurableObjectStorage} storage
+   * @param {string} fileSizeHistogramKey
    */
-  constructor(storage) {
+  constructor(storage, fileSizeHistogramKey = "fileSize/histogram") {
     const metrics = this.createMetricsFromStorage(storage);
+    this.storage = storage;
     this.router = this.createRouter(metrics);
+    this.fileSizeHistogramKey = fileSizeHistogramKey;
   }
 
   /**
@@ -23,20 +27,46 @@ export class IndexerMetricsCollector {
    * @returns {Promise<IndexerMetricsPrometheusContext>}
    */
   async createMetricsFromStorage(storage) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
-    const storedString = await storage.get("prometheusMetricsString");
-    return new IndexerMetricsPrometheusContext();
+    const registry = new Registry();
+    const fileSizeHistogramSerialized = await storage.get("fileSize/histogram");
+    const sizeHistogramFromStorage = fileSizeHistogramSerialized
+      ? HistogramSerializer.deserialize(
+          /** @type {import("../prom-client-serializer/prom-client-serializer.js").SerializedHistogram} */ (
+            fileSizeHistogramSerialized
+          ),
+          [registry]
+        )
+      : undefined;
+    return new IndexerMetricsPrometheusContext(
+      registry,
+      sizeHistogramFromStorage
+    );
   }
 
   /**
    * @param {Promise<IndexerMetricsPrometheusContext>} metrics
-   * @returns {Promise<Router>}
+   * @returns {Router}
    */
-  async createRouter(metrics) {
+  createRouter(metrics) {
     const router = Router();
-    router.post("/events", PostEventsRoute(await metrics));
-    router.get("/metrics", GetMetricsRoute(await metrics));
+    router.post(
+      "/events",
+      PostEventsRoute(metrics, (m) => this.storeMetrics(this.storage, m))
+    );
+    router.get("/metrics", GetMetricsRoute(metrics));
     return router;
+  }
+
+  /**
+   * @param {DurableObjectStorage} storage
+   * @param {IndexerMetricsPrometheusContext} metrics
+   * @returns {Promise<void>}
+   */
+  async storeMetrics(storage, metrics) {
+    await storage.put(
+      this.fileSizeHistogramKey,
+      await HistogramSerializer.serialize(metrics.fileSize)
+    );
   }
 
   /**
@@ -46,7 +76,7 @@ export class IndexerMetricsCollector {
   async fetch(request) {
     /** @type {Response|undefined} */
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const response = await (await this.router).handle(request);
+    const response = await this.router.handle(request);
     return response || new Response("route not found", { status: 404 });
   }
 }
@@ -54,13 +84,15 @@ export class IndexerMetricsCollector {
 /**
  * Route to handle POST /events/
  * Which should have requests
- * @param {IndexerMetricsPrometheusContext} metrics
+ * @param {Promise<IndexerMetricsPrometheusContext>} metricsPromise
+ * @param {(metrics: IndexerMetricsPrometheusContext) => Promise<void>} storeMetrics
  */
-function PostEventsRoute(metrics) {
+function PostEventsRoute(metricsPromise, storeMetrics) {
   /**
    * @param {Request} request
    */
   return async (request) => {
+    const metrics = await metricsPromise;
     /** @type {unknown} */
     let requestBody;
     try {
@@ -86,34 +118,38 @@ function PostEventsRoute(metrics) {
         const exhaustiveCheck = event.type;
         throw new Error(`unexpected event type: ${String(event.type)}`);
     }
-    // console.log('PostEventsRoute got event', event)
+    await storeMetrics(metrics);
     return new Response("got event", { status: 202 });
   };
 }
 
 class IndexerMetricsPrometheusContext {
-  constructor(registry = new Registry()) {
-    this.registry = registry;
-    /**
-     * @type {Pick<import('prom-client').Histogram<never>, 'observe'>}
-     */
-    this.fileSize = new Histogram({
+  /**
+   * @param {import('prom-client').Histogram<string>} fileSize
+   */
+  constructor(
+    registry = new Registry(),
+    fileSize = new Histogram({
       name: "file_size_bytes",
       help: "file seen with certain size",
-      registers: [this.registry],
-    });
+      registers: [registry],
+    })
+  ) {
+    this.registry = registry;
+    this.fileSize = fileSize;
   }
 }
 
 /**
- * @param {IndexerMetricsPrometheusContext} metrics
+ * @param {Promise<IndexerMetricsPrometheusContext>} metricsPromise
  */
-function GetMetricsRoute(metrics) {
+function GetMetricsRoute(metricsPromise) {
   /**
    * @param {Request} _request
    * @returns {Promise<Response>}
    */
   return async (_request) => {
+    const metrics = await metricsPromise;
     return new Response(await metrics.registry.metrics(), { status: 200 });
   };
 }
