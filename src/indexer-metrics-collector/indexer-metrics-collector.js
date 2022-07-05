@@ -4,7 +4,6 @@ import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
 import { Histogram, Registry } from "prom-client";
 import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
-// import assert from "node:assert";
 
 /**
  * @typedef {import('@miniflare/durable-objects').DurableObjectStorage} DurableObjectStorage
@@ -16,10 +15,10 @@ export class IndexerMetricsCollector {
    * @param {string} fileSizeHistogramKey
    */
   constructor(storage, fileSizeHistogramKey = "fileSize/histogram") {
+    this.fileSizeHistogramKey = fileSizeHistogramKey;
     const metrics = this.createMetricsFromStorage(storage);
     this.storage = storage;
     this.router = this.createRouter(metrics);
-    this.fileSizeHistogramKey = fileSizeHistogramKey;
   }
 
   /**
@@ -28,7 +27,9 @@ export class IndexerMetricsCollector {
    */
   async createMetricsFromStorage(storage) {
     const registry = new Registry();
-    const fileSizeHistogramSerialized = await storage.get("fileSize/histogram");
+    const fileSizeHistogramSerialized = await storage.get(
+      this.fileSizeHistogramKey
+    );
     const sizeHistogramFromStorage = fileSizeHistogramSerialized
       ? HistogramSerializer.deserialize(
           /** @type {import("../prom-client-serializer/prom-client-serializer.js").SerializedHistogram} */ (
