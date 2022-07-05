@@ -11,11 +11,12 @@ test("can serialize/deserialize a prom-client histogram", async (t) => {
     name: "test_metric",
     help: "its a metric",
     registers: [registry1],
+    labelNames: ["testValue1", "testValue2"],
   });
   const sampleSize = 5;
   const samples = new Array(sampleSize).fill(0).map((e, i) => i);
   for (const sample of samples) {
-    histogram.observe(sample);
+    histogram.observe({ testValue1: sample, testValue2: sample }, sample);
   }
   t.is(/** @type {any} */ (histogram).name, "test_metric");
   // test that we can serialize | deserialize and get the same metrics
