@@ -21,6 +21,8 @@
   },
   "homepage": "https://github.com/ipfs-elastic-provider/metrics-collector#readme",
   "devDependencies": {
+    "@miniflare/durable-objects": "^2.5.1",
+    "@miniflare/storage-memory": "^2.5.1",
     "@types/serviceworker": "^0.0.47",
     "@typescript-eslint/eslint-plugin": "^5.30.0",
     "ava": "^4.3.0",
@@ -67,9 +69,12 @@
       "node": true
     },
     "rules": {
-      "@typescript-eslint/no-unused-vars": ["error", {
-        "argsIgnorePattern": "^_"
-      }]
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "argsIgnorePattern": "^_"
+        }
+      ]
     }
   }
 }

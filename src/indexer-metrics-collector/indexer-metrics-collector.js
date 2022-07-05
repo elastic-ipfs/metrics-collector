@@ -2,23 +2,89 @@ import { Router } from "itty-router";
 import { IndexerNotified } from "../indexer-events/indexer-events.js";
 import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
-import { Histogram, Registry } from "prom-client";
+import { Histogram, linearBuckets, Registry } from "prom-client";
+import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
+
+/**
+ * buckets for bytes to use for fileSize histogram.
+ * This will only be used the first time the histogram is created, i.e. when storage is empty.
+ * After the initial run, storage will not be empty, and the histogram will be deserialized according to the buckets from storage.
+ * So you probably don't want to change this constant.
+ * If you want to change the buckets, you may also want to change the fileSizeHistogramKey
+ */
+const DEFAULT_FILESIZE_BYTES_BUCKETS = [
+  1 * 1e6,
+  ...linearBuckets(10 * 1e6, 10 * 1e6, 10),
+];
+
+/**
+ * @typedef {import('@miniflare/durable-objects').DurableObjectStorage} DurableObjectStorage
+ */
 
 export class IndexerMetricsCollector {
-  constructor() {
-    this.metrics = new IndexerMetricsPrometheusContext();
-    this.router = this.createRouter(this.metrics);
+  /**
+   * @param {DurableObjectStorage} storage
+   * @param {string} fileSizeHistogramKey
+   */
+  constructor(storage, fileSizeHistogramKey = "fileSize/histogram") {
+    this.fileSizeHistogramKey = fileSizeHistogramKey;
+    const metrics = this.createMetricsFromStorage(storage);
+    this.storage = storage;
+    this.router = this.createRouter(metrics);
   }
 
   /**
-   * @param {IndexerMetricsPrometheusContext} metrics
+   * @param {DurableObjectStorage} storage
+   * @returns {Promise<IndexerMetricsPrometheusContext>}
+   */
+  async createMetricsFromStorage(storage) {
+    const registry = new Registry();
+    const fileSizeHistogramSerialized = await storage.get(
+      this.fileSizeHistogramKey
+    );
+    const sizeHistogramFromStorage = fileSizeHistogramSerialized
+      ? HistogramSerializer.deserialize(
+          /** @type {import("../prom-client-serializer/prom-client-serializer.js").SerializedHistogram} */ (
+            fileSizeHistogramSerialized
+          ),
+          [registry]
+        )
+      : new Histogram({
+          name: "file_size_bytes",
+          help: "file seen with certain size",
+          registers: [registry],
+          buckets: DEFAULT_FILESIZE_BYTES_BUCKETS,
+        });
+    return new IndexerMetricsPrometheusContext(
+      registry,
+      sizeHistogramFromStorage
+    );
+  }
+
+  /**
+   * @param {Promise<IndexerMetricsPrometheusContext>} metrics
    * @returns {Router}
    */
   createRouter(metrics) {
     const router = Router();
-    router.post("/events", PostEventsRoute(metrics));
+    router.post(
+      "/events",
+      PostEventsRoute(metrics, (m) => this.storeMetrics(this.storage, m))
+    );
     router.get("/metrics", GetMetricsRoute(metrics));
     return router;
+  }
+
+  /**
+   * @param {DurableObjectStorage} storage
+   * @param {IndexerMetricsPrometheusContext} metrics
+   * @returns {Promise<void>}
+   */
+  async storeMetrics(storage, metrics) {
+    await storage.put(
+      this.fileSizeHistogramKey,
+      await HistogramSerializer.serialize(metrics.fileSize)
+    );
   }
 
   /**
@@ -36,13 +102,15 @@ export class IndexerMetricsCollector {
 /**
  * Route to handle POST /events/
  * Which should have requests
- * @param {IndexerMetricsPrometheusContext} metrics
+ * @param {Promise<IndexerMetricsPrometheusContext>} metricsPromise
+ * @param {(metrics: IndexerMetricsPrometheusContext) => Promise<void>} storeMetrics
  */
-function PostEventsRoute(metrics) {
+function PostEventsRoute(metricsPromise, storeMetrics) {
   /**
    * @param {Request} request
    */
   return async (request) => {
+    const metrics = await metricsPromise;
     /** @type {unknown} */
     let requestBody;
     try {
@@ -68,34 +136,32 @@ function PostEventsRoute(metrics) {
         const exhaustiveCheck = event.type;
         throw new Error(`unexpected event type: ${String(event.type)}`);
     }
-    // console.log('PostEventsRoute got event', event)
+    await storeMetrics(metrics);
     return new Response("got event", { status: 202 });
   };
 }
 
 class IndexerMetricsPrometheusContext {
-  constructor(registry = new Registry()) {
+  /**
+   * @param {import('prom-client').Registry} registry
+   * @param {import('prom-client').Histogram<string>} fileSize
+   */
+  constructor(registry = new Registry(), fileSize) {
     this.registry = registry;
-    /**
-     * @type {Pick<import('prom-client').Histogram<never>, 'observe'>}
-     */
-    this.fileSize = new Histogram({
-      name: "file_size_bytes",
-      help: "file seen with certain size",
-      registers: [this.registry],
-    });
+    this.fileSize = fileSize;
   }
 }
 
 /**
- * @param {IndexerMetricsPrometheusContext} metrics
+ * @param {Promise<IndexerMetricsPrometheusContext>} metricsPromise
  */
-function GetMetricsRoute(metrics) {
+function GetMetricsRoute(metricsPromise) {
   /**
    * @param {Request} _request
    * @returns {Promise<Response>}
    */
   return async (_request) => {
+    const metrics = await metricsPromise;
     return new Response(await metrics.registry.metrics(), { status: 200 });
   };
 }
