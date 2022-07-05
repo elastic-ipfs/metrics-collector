@@ -1,5 +1,8 @@
 import { Router } from "itty-router";
-import { IndexerNotified } from "../indexer-events/indexer-events.js";
+import {
+  IndexerCompleted,
+  IndexerNotified,
+} from "../indexer-events/indexer-events.js";
 import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
 import { Histogram, linearBuckets, Registry } from "prom-client";
@@ -120,7 +123,11 @@ function PostEventsRoute(metricsPromise, storeMetrics) {
         status: 400,
       });
     }
-    if (!isValid(IndexerNotified, requestBody)) {
+    /**  @type {import("ajv").JSONSchemaType<IndexerNotified|IndexerCompleted>} */
+    const eventSubmission = {
+      oneOf: [IndexerNotified.schema, IndexerCompleted.schema],
+    };
+    if (!isValid({ schema: eventSubmission }, requestBody)) {
       return new Response("request body is not a valid event type", {
         status: 400,
       });
@@ -130,11 +137,13 @@ function PostEventsRoute(metricsPromise, storeMetrics) {
       case "IndexerNotified":
         metrics.fileSize.observe(event.byteLength);
         break;
+      case "IndexerCompleted":
+        break;
       default:
         /** @type {never} */
         // eslint-disable-next-line no-case-declarations, no-unused-vars, @typescript-eslint/no-unused-vars
-        const exhaustiveCheck = event.type;
-        throw new Error(`unexpected event type: ${String(event.type)}`);
+        const exhaustiveCheck = event;
+        throw new Error(`unexpected event type: ${String(event)}`);
     }
     await storeMetrics(metrics);
     return new Response("got event", { status: 202 });

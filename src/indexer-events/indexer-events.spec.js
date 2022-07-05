@@ -1,6 +1,6 @@
 import { isValid } from "../schema.js";
 import { test } from "../testing.js";
-import { IndexerNotified } from "./indexer-events.js";
+import { IndexerCompleted, IndexerNotified } from "./indexer-events.js";
 
 const exampleImageUri =
   "https://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy.ipfs.nftstorage.link/";
@@ -33,6 +33,34 @@ test("can validate an IndexerNotified event", (t) => {
     isValid(
       IndexerNotified,
       new IndexerNotified(exampleImageUri, 1, new Date())
+    ),
+    true
+  );
+});
+
+test("can validate an IndexerCompleted event", (t) => {
+  t.is(isValid(IndexerCompleted, { type: "IndexerCompleted" }), false);
+
+  t.is(
+    isValid(IndexerCompleted, {
+      byteLength: 1,
+      indexing: {
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+      },
+      type: "IndexerCompleted",
+      uri: exampleImageUri,
+    }),
+    true
+  );
+
+  t.is(
+    isValid(
+      IndexerCompleted,
+      new IndexerCompleted(exampleImageUri, 1, {
+        startTime: new Date(),
+        endTime: new Date(),
+      })
     ),
     true
   );
