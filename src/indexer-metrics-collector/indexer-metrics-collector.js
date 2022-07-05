@@ -27,10 +27,16 @@ const DEFAULT_FILESIZE_BYTES_BUCKETS = [
 export class IndexerMetricsCollector {
   /**
    * @param {DurableObjectStorage} storage
-   * @param {string} fileSizeHistogramKey
+   * @param {string} fileSizeHistogramStorageKey - storage key at which to store fileSize histogram
+   * @param {string} indexingDurationSecondsStorageKey - storage key at which to store indexingDurationSeconds histogram
    */
-  constructor(storage, fileSizeHistogramKey = "fileSize/histogram") {
-    this.fileSizeHistogramKey = fileSizeHistogramKey;
+  constructor(
+    storage,
+    fileSizeHistogramStorageKey = "fileSize/histogram",
+    indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram"
+  ) {
+    this.indexingDurationSecondsStorageKey = indexingDurationSecondsStorageKey;
+    this.fileSizeHistogramStorageKey = fileSizeHistogramStorageKey;
     const metrics = this.createMetricsFromStorage(storage);
     this.storage = storage;
     this.router = this.createRouter(metrics);
@@ -43,9 +49,9 @@ export class IndexerMetricsCollector {
   async createMetricsFromStorage(storage) {
     const registry = new Registry();
     const fileSizeHistogramSerialized = await storage.get(
-      this.fileSizeHistogramKey
+      this.fileSizeHistogramStorageKey
     );
-    const sizeHistogramFromStorage = fileSizeHistogramSerialized
+    const fileSizeHistogram = fileSizeHistogramSerialized
       ? HistogramSerializer.deserialize(
           /** @type {import("../prom-client-serializer/prom-client-serializer.js").SerializedHistogram} */ (
             fileSizeHistogramSerialized
@@ -58,9 +64,25 @@ export class IndexerMetricsCollector {
           registers: [registry],
           buckets: DEFAULT_FILESIZE_BYTES_BUCKETS,
         });
+    const indexingDurationSecondsStored = await storage.get(
+      this.indexingDurationSecondsStorageKey
+    );
+    const indexingDurationSecondsHistogram = indexingDurationSecondsStored
+      ? HistogramSerializer.deserialize(
+          /** @type {import("../prom-client-serializer/prom-client-serializer.js").SerializedHistogram} */ (
+            indexingDurationSecondsStored
+          ),
+          [registry]
+        )
+      : new Histogram({
+          name: "indexing_duration_seconds",
+          help: "how long did ipfs indexing take from start to completion",
+          registers: [registry],
+        });
     return new IndexerMetricsPrometheusContext(
       registry,
-      sizeHistogramFromStorage
+      fileSizeHistogram,
+      indexingDurationSecondsHistogram
     );
   }
 
@@ -84,10 +106,16 @@ export class IndexerMetricsCollector {
    * @returns {Promise<void>}
    */
   async storeMetrics(storage, metrics) {
-    await storage.put(
-      this.fileSizeHistogramKey,
-      await HistogramSerializer.serialize(metrics.fileSize)
-    );
+    await Promise.all([
+      storage.put(
+        this.fileSizeHistogramStorageKey,
+        await HistogramSerializer.serialize(metrics.fileSize)
+      ),
+      storage.put(
+        this.indexingDurationSecondsStorageKey,
+        await HistogramSerializer.serialize(metrics.indexingDurationSeconds)
+      ),
+    ]);
   }
 
   /**
@@ -138,6 +166,13 @@ function PostEventsRoute(metricsPromise, storeMetrics) {
         metrics.fileSize.observe(event.byteLength);
         break;
       case "IndexerCompleted":
+        {
+          const startTimeMilliseconds = Date.parse(event.indexing.startTime);
+          const endTimeMilliseconds = Date.parse(event.indexing.endTime);
+          const durationSeconds =
+            (endTimeMilliseconds - startTimeMilliseconds) / 1000;
+          metrics.indexingDurationSeconds.observe(durationSeconds);
+        }
         break;
       default:
         /** @type {never} */
@@ -154,10 +189,12 @@ class IndexerMetricsPrometheusContext {
   /**
    * @param {import('prom-client').Registry} registry
    * @param {import('prom-client').Histogram<string>} fileSize
+   * @param {import('prom-client').Histogram<string>} indexingDurationSeconds
    */
-  constructor(registry = new Registry(), fileSize) {
+  constructor(registry = new Registry(), fileSize, indexingDurationSeconds) {
     this.registry = registry;
     this.fileSize = fileSize;
+    this.indexingDurationSeconds = indexingDurationSeconds;
   }
 }
 
