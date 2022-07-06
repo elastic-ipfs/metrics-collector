@@ -1,5 +1,5 @@
 import { test } from "../testing.js";
-import { IndexerMetricsCollector } from "./indexer-metrics-collector.js";
+import { IndexerMetricsCollector } from "./indexer-metrics-collector.mjs";
 import {
   IndexerCompleted,
   IndexerNotified,
@@ -16,7 +16,7 @@ const exampleImageUri =
 
 test("can send IndexerCompleted event to IndexerMetricsCollector", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector = new IndexerMetricsCollector(storage);
+  const collector = new IndexerMetricsCollector({ storage });
   const event1 = generate(IndexerCompleted.schema);
   // submit an event
   const eventSubmissionRequest = new Request("https://example.com/events", {
@@ -32,7 +32,7 @@ test("can send IndexerCompleted event to IndexerMetricsCollector", async (t) => 
 
 test("can send event IndexerNotified events to IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector = new IndexerMetricsCollector(storage);
+  const collector = new IndexerMetricsCollector({ storage });
   const event1 = generate(IndexerNotified.schema);
 
   // submit an event
@@ -68,7 +68,7 @@ test("can send event IndexerNotified events to IndexerMetricsCollector and then 
 
 test("can send event multiple IndexerNotified events to multiple IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector1 = new IndexerMetricsCollector(storage);
+  const collector1 = new IndexerMetricsCollector({ storage });
   // submit an event1
   const eventSubmissionResponse1 = await collector1.fetch(
     new Request("https://example.com/events", {
@@ -82,7 +82,7 @@ test("can send event multiple IndexerNotified events to multiple IndexerMetricsC
   t.is(eventSubmissionResponse1.status, 202);
 
   // submit an event2
-  const collector2 = new IndexerMetricsCollector(storage);
+  const collector2 = new IndexerMetricsCollector({ storage });
   const eventSubmissionResponse2 = await collector2.fetch(
     new Request("https://example.com/events", {
       method: "post",
@@ -95,7 +95,7 @@ test("can send event multiple IndexerNotified events to multiple IndexerMetricsC
   t.is(eventSubmissionResponse2.status, 202);
 
   // fetch metrics
-  const collector3 = new IndexerMetricsCollector(storage);
+  const collector3 = new IndexerMetricsCollector({ storage });
   const metricsResponse = await collector3.fetch(
     new Request("https://example.com/metrics")
   );
@@ -117,7 +117,7 @@ test("can send event multiple IndexerNotified events to multiple IndexerMetricsC
 
 test("can send event multiple IndexerCompleted events to multiple IndexerMetricsCollector and then request indexing_duration_seconds metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector1 = new IndexerMetricsCollector(storage);
+  const collector1 = new IndexerMetricsCollector({ storage });
   const now = new Date();
   const oneMinuteFromNow = new Date(Number(now) + 60 * 1000);
   /** @type {IndexerCompleted} */
@@ -138,7 +138,7 @@ test("can send event multiple IndexerCompleted events to multiple IndexerMetrics
   t.is(eventSubmissionResponse1.status, 202);
 
   // fetch metrics
-  const collector2 = new IndexerMetricsCollector(storage);
+  const collector2 = new IndexerMetricsCollector({ storage });
   const metricsResponse = await collector2.fetch(
     new Request("https://example.com/metrics")
   );

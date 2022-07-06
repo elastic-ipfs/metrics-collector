@@ -680,3 +680,17 @@ declare module "prom-client" {
    */
   export function validateMetricName(name: string): boolean;
 }
+
+declare module "prom-client/lib/histogram.js" {
+  import { Histogram } from "prom-client";
+  export default Histogram;
+}
+
+declare module "prom-client/lib/registry.js" {
+  import { Registry } from "prom-client";
+  export default Registry;
+}
+
+declare module "prom-client/lib/bucketGenerators.js" {
+  export { linearBuckets } from "prom-client";
+}
