@@ -1,13 +1,10 @@
 import jsf from "json-schema-faker";
-import Ajv from "ajv/dist/ajv.js";
-import ajvFormats from "ajv-formats";
+import { Validator } from "@cfworker/json-schema";
 
 /**
  * @typedef {import('ajv').JSONSchemaType<Type>} JSONSchemaType
  * @template Type
  */
-
-const ajv = ajvFormats(new Ajv());
 
 /**
  *
@@ -19,7 +16,7 @@ export function generate(schema) {
   const instance = jsf.generate(
     /** @type {import('json-schema-faker').Schema} */ (schema)
   );
-  if (!ajv.validate(schema, instance)) {
+  if (!isValid({ schema }, instance)) {
     throw new Error("generated value does not match schema");
   }
   return instance;
@@ -33,6 +30,11 @@ export function generate(schema) {
  * @returns {instance is Type}
  */
 export function isValid(typeDefinition, instance) {
-  const validate = ajv.compile(typeDefinition.schema);
-  return validate(instance);
+  const validator = new Validator(
+    /** @type {import("@cfworker/json-schema").Schema} */ (
+      typeDefinition.schema
+    )
+  );
+  const result = validator.validate(instance);
+  return result.valid;
 }
