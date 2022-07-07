@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy
     environment:
-      name: bengo-cloudflare
-      url: https://indexer-metrics-collector.bengo.workers.dev
+      name: cloudflare-dag.house
+      url: https://indexer-metrics-collector.protocol-labs.workers.dev
     steps:
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
