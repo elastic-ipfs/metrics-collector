@@ -96,6 +96,9 @@ export class IndexerMetricsCollector {
    */
   createRouter(metrics) {
     const router = Router();
+    router.get("/", () => {
+      return new Response("indexer-metrics-collector", { status: 200 });
+    });
     router.post(
       "/events",
       PostEventsRoute(metrics, (m) => this.storeMetrics(this.storage, m))

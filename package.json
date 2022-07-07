@@ -8,7 +8,8 @@
     "lint": "eslint 'src/**/*.js'",
     "lint:fix": "npm run lint -- --fix",
     "test": "NODE_OPTIONS='--experimental-vm-modules' c8 ava",
-    "typecheck": "tsc --build tsconfig.json"
+    "typecheck": "tsc --build tsconfig.json",
+    "build:indexer-metrics-collector": "npx esbuild --bundle --sourcemap --outdir=dist/indexer-metrics-collector ./src/indexer-metrics-collector/worker.mjs"
   },
   "repository": {
     "type": "git",

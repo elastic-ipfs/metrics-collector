@@ -5,7 +5,7 @@ node_compat = true
 
 [durable_objects]
 bindings = [
-    {name = "IndexerMetricsCollector", class_name = "IndexerMetricsCollector" }
+    { name = "IndexerMetricsCollector", class_name = "IndexerMetricsCollector" }
 ]
 
 [[migrations]]
