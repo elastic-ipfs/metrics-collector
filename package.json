@@ -37,6 +37,7 @@
     "wrangler": "^2.0.16"
   },
   "dependencies": {
+    "@cfworker/json-schema": "^1.12.3",
     "@types/node": "^18.0.0",
     "@web-std/fetch": "^4.1.0",
     "ajv": "^8.11.0",
