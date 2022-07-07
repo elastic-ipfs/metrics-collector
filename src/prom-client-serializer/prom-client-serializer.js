@@ -1,5 +1,4 @@
-import assert from "node:assert";
-import { Histogram } from "prom-client";
+import { Histogram } from "../indexer-metrics-collector/prometheus.js";
 
 /**
  * @typedef SerializedHistogram
@@ -42,7 +41,6 @@ export class HistogramSerializer {
    * @returns {Histogram<string>}
    */
   static deserialize(serialized, registers) {
-    assert.ok(serialized.type === "histogram");
     const histogram = new Histogram({
       name: serialized.name,
       help: serialized.help,

@@ -1,0 +1,13 @@
+name = "indexer-metrics-collector"
+main = "./worker.mjs"
+compatibility_date = "2022-07-06"
+node_compat = true
+
+[durable_objects]
+bindings = [
+    { name = "IndexerMetricsCollector", class_name = "IndexerMetricsCollector" }
+]
+
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_classes = ["IndexerMetricsCollector"]

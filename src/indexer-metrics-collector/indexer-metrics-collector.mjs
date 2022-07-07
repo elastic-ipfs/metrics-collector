@@ -5,8 +5,8 @@ import {
 } from "../indexer-events/indexer-events.js";
 import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
-import { Histogram, linearBuckets, Registry } from "prom-client";
 import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
+import { Histogram, linearBuckets, Registry } from "./prometheus.js";
 
 /**
  * buckets for bytes to use for fileSize histogram.
@@ -26,19 +26,23 @@ const DEFAULT_FILESIZE_BYTES_BUCKETS = [
 
 export class IndexerMetricsCollector {
   /**
-   * @param {DurableObjectStorage} storage
+   * @param {object} state
+   * @param {DurableObjectStorage} state.storage
+   * @param {unknown} [env]
    * @param {string} fileSizeHistogramStorageKey - storage key at which to store fileSize histogram
    * @param {string} indexingDurationSecondsStorageKey - storage key at which to store indexingDurationSeconds histogram
    */
   constructor(
-    storage,
+    state,
+    env,
     fileSizeHistogramStorageKey = "fileSize/histogram",
     indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram"
   ) {
+    const storage = state.storage;
+    this.storage = storage;
     this.indexingDurationSecondsStorageKey = indexingDurationSecondsStorageKey;
     this.fileSizeHistogramStorageKey = fileSizeHistogramStorageKey;
     const metrics = this.createMetricsFromStorage(storage);
-    this.storage = storage;
     this.router = this.createRouter(metrics);
   }
 
@@ -92,6 +96,9 @@ export class IndexerMetricsCollector {
    */
   createRouter(metrics) {
     const router = Router();
+    router.get("/", () => {
+      return new Response("indexer-metrics-collector", { status: 200 });
+    });
     router.post(
       "/events",
       PostEventsRoute(metrics, (m) => this.storeMetrics(this.storage, m))
