@@ -31,27 +31,34 @@ export class IndexerMetricsCollector {
    * @param {unknown} [env]
    * @param {string} fileSizeHistogramStorageKey - storage key at which to store fileSize histogram
    * @param {string} indexingDurationSecondsStorageKey - storage key at which to store indexingDurationSeconds histogram
+   * @param {Record<string,string>} defaultPrometheusLabels - object with key/values that should be on all prometheus metrics (e.g. 'instance', 'jobName)
    */
   constructor(
     state,
     env,
     fileSizeHistogramStorageKey = "fileSize/histogram",
-    indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram"
+    indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram",
+    defaultPrometheusLabels = {}
   ) {
     const storage = state.storage;
     this.storage = storage;
     this.indexingDurationSecondsStorageKey = indexingDurationSecondsStorageKey;
     this.fileSizeHistogramStorageKey = fileSizeHistogramStorageKey;
-    const metrics = this.createMetricsFromStorage(storage);
+    const metrics = this.createMetricsFromStorage(
+      storage,
+      defaultPrometheusLabels
+    );
     this.router = this.createRouter(metrics);
   }
 
   /**
    * @param {DurableObjectStorage} storage
+   * @param {Record<string,string>} defaultPrometheusLabels - object with key/values that should be on all prometheus metrics (e.g. 'instance', 'jobName)
    * @returns {Promise<IndexerMetricsPrometheusContext>}
    */
-  async createMetricsFromStorage(storage) {
+  async createMetricsFromStorage(storage, defaultPrometheusLabels) {
     const registry = new Registry();
+    registry.setDefaultLabels(defaultPrometheusLabels);
     const fileSizeHistogramSerialized = await storage.get(
       this.fileSizeHistogramStorageKey
     );
