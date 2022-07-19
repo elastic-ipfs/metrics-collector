@@ -6,7 +6,19 @@ import { IndexerNotified } from "../indexer-events/indexer-events.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function useMiniflare() {
+const examplePrometheusLabels = {
+  object: { a: "A", b: "B" },
+  pattern: /a="A",b="B"/g,
+  env: {
+    PROMETHEUS_DEFAULT_LABELS: JSON.stringify({ a: "A", b: "B" }),
+  },
+};
+
+/**
+ *
+ * @param {Record<string,string>} [env]
+ */
+function useMiniflare(env = {}) {
   return new Miniflare({
     modules: true,
     scriptPath: join(
@@ -15,6 +27,9 @@ function useMiniflare() {
     ),
     packagePath: true,
     wranglerConfigPath: join(__dirname, "wrangler.toml"),
+    bindings: {
+      ...env,
+    },
     buildCommand:
       "npx wrangler publish src/indexer-metrics-collector/worker.mjs --dry-run --outdir=dist/indexer-metrics-collector",
   });
@@ -42,4 +57,16 @@ test("can test indexer-metrics-collector with miniflare", async (t) => {
     }
   );
   t.is(eventSubmissionResponse.status, 202);
+});
+
+test("makes use of PROMETHEUS_DEFAULT_LABELS env var", async (t) => {
+  const mf = useMiniflare(examplePrometheusLabels.env);
+  const metricsText = await mf
+    .dispatchFetch("http://localhost:8787/metrics")
+    .then((r) => r.text());
+  t.is(
+    metricsText.match(examplePrometheusLabels.pattern)?.length,
+    // This will be 28 unless we change the bucketing or add metrics
+    28
+  );
 });

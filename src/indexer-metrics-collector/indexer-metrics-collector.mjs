@@ -7,6 +7,8 @@ import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
 import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
 import { Histogram, linearBuckets, Registry } from "./prometheus.js";
+import assert from "assert";
+import { hasOwnProperty } from "../object.js";
 
 /**
  * buckets for bytes to use for fileSize histogram.
@@ -38,7 +40,9 @@ export class IndexerMetricsCollector {
     env,
     fileSizeHistogramStorageKey = "fileSize/histogram",
     indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram",
-    defaultPrometheusLabels = {}
+    defaultPrometheusLabels = IndexerMetricsCollector.envTo.defaultPrometheusLabels(
+      env
+    )
   ) {
     const storage = state.storage;
     this.storage = storage;
@@ -50,6 +54,30 @@ export class IndexerMetricsCollector {
     );
     this.router = this.createRouter(metrics);
   }
+
+  /**
+   * Methods for parsing things out of the env vars passed to the constructor
+   */
+  static envTo = {
+    /**
+     * @param {unknown} env
+     * @returns {Record<string,string>}
+     */
+    defaultPrometheusLabels(env) {
+      if (env && hasOwnProperty(env, "PROMETHEUS_DEFAULT_LABELS")) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const envValue = env.PROMETHEUS_DEFAULT_LABELS;
+        assert.ok(typeof envValue === "string");
+        if (envValue) {
+          /** @type {Record<string,string>} */
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const parsed = JSON.parse(envValue);
+          return parsed;
+        }
+      }
+      return {};
+    },
+  };
 
   /**
    * @param {DurableObjectStorage} storage
