@@ -11,6 +11,10 @@ import { Histogram } from "../indexer-metrics-collector/prometheus.js";
  * @property {Record<string,{ labels: Record<string,string>, bucketValues: Record<string,number>, sum: number, count: number }>} hashToBuckets
  */
 
+/**
+ * Object to encode/decde a prom-client Histogram to/from an object that can be JSON-stringified.
+ * One use case for this is to encode the Histogram into something that can be stored in a k/v store
+ */
 export class HistogramSerializer {
   /**
    * @param {Histogram<string>} metric

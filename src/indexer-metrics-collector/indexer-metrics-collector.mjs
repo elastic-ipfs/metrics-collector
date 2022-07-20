@@ -7,6 +7,8 @@ import { isValid } from "../schema.js";
 import { Response } from "@web-std/fetch";
 import { HistogramSerializer } from "../prom-client-serializer/prom-client-serializer.js";
 import { Histogram, linearBuckets, Registry } from "./prometheus.js";
+import assert from "assert";
+import { hasOwnProperty } from "../object.js";
 
 /**
  * buckets for bytes to use for fileSize histogram.
@@ -31,27 +33,60 @@ export class IndexerMetricsCollector {
    * @param {unknown} [env]
    * @param {string} fileSizeHistogramStorageKey - storage key at which to store fileSize histogram
    * @param {string} indexingDurationSecondsStorageKey - storage key at which to store indexingDurationSeconds histogram
+   * @param {Record<string,string>} defaultPrometheusLabels - object with key/values that should be on all prometheus metrics (e.g. 'instance', 'jobName)
    */
   constructor(
     state,
     env,
     fileSizeHistogramStorageKey = "fileSize/histogram",
-    indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram"
+    indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram",
+    defaultPrometheusLabels = IndexerMetricsCollector.envTo.defaultPrometheusLabels(
+      env
+    )
   ) {
     const storage = state.storage;
     this.storage = storage;
     this.indexingDurationSecondsStorageKey = indexingDurationSecondsStorageKey;
     this.fileSizeHistogramStorageKey = fileSizeHistogramStorageKey;
-    const metrics = this.createMetricsFromStorage(storage);
+    const metrics = this.createMetricsFromStorage(
+      storage,
+      defaultPrometheusLabels
+    );
     this.router = this.createRouter(metrics);
   }
 
   /**
+   * Methods for parsing things out of the env vars passed to the constructor
+   */
+  static envTo = {
+    /**
+     * @param {unknown} env
+     * @returns {Record<string,string>}
+     */
+    defaultPrometheusLabels(env) {
+      if (env && hasOwnProperty(env, "PROMETHEUS_DEFAULT_LABELS")) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const envValue = env.PROMETHEUS_DEFAULT_LABELS;
+        assert.ok(typeof envValue === "string");
+        if (envValue) {
+          /** @type {Record<string,string>} */
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const parsed = JSON.parse(envValue);
+          return parsed;
+        }
+      }
+      return {};
+    },
+  };
+
+  /**
    * @param {DurableObjectStorage} storage
+   * @param {Record<string,string>} defaultPrometheusLabels - object with key/values that should be on all prometheus metrics (e.g. 'instance', 'jobName)
    * @returns {Promise<IndexerMetricsPrometheusContext>}
    */
-  async createMetricsFromStorage(storage) {
+  async createMetricsFromStorage(storage, defaultPrometheusLabels) {
     const registry = new Registry();
+    registry.setDefaultLabels(defaultPrometheusLabels);
     const fileSizeHistogramSerialized = await storage.get(
       this.fileSizeHistogramStorageKey
     );

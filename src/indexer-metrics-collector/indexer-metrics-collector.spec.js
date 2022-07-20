@@ -30,6 +30,74 @@ test("can send IndexerCompleted event to IndexerMetricsCollector", async (t) => 
   t.is(eventSubmissionResponse.status, 202);
 });
 
+test("can provide defaultPrometheusLabels to IndexerMetricsCollector constructor", async (t) => {
+  const defaultPrometheusLabels = { a: "A", b: "B" };
+  const labelsPromTextPattern = /a="A",b="B"/g;
+  const storage = new DurableObjectStorage(new MemoryStorage());
+  const collector = new IndexerMetricsCollector(
+    {
+      storage,
+    },
+    undefined,
+    undefined,
+    undefined,
+    defaultPrometheusLabels
+  );
+  await postSampleEvents(collector, t);
+  const metricsText = await fetchMetrics(collector, t);
+  // parsePrometheus wont actually show the labels even if they're there.
+  // so we'll assert they're in there via regex on the unparsed prometheus-text-format string
+  t.is(
+    metricsText.match(labelsPromTextPattern)?.length,
+    // This will be 28 unless we change the bucketing or add metrics
+    28
+  );
+
+  // we also want to make sure that these labels are specific to the collector.
+  // i.e. another collector made from same storage should not have the same labels in its metrics
+  const collector2 = new IndexerMetricsCollector({ storage });
+  const metricsText2 = await fetchMetrics(collector2, t);
+  t.is(metricsText2.match(labelsPromTextPattern), null);
+});
+
+/**
+ * Send at least one event to IndexerMetricsCollector
+ * @param {IndexerMetricsCollector} collector
+ * @param {import("ava").ExecutionContext<unknown>} t
+ */
+async function postSampleEvents(collector, t) {
+  const event1 = generate(IndexerNotified.schema);
+
+  // submit an event
+  const eventSubmissionRequest = new Request("https://example.com/events", {
+    method: "post",
+    body: JSON.stringify(event1),
+    headers: {
+      "content-type": "application/json",
+    },
+  });
+  const eventSubmissionResponse = await collector.fetch(eventSubmissionRequest);
+  t.is(eventSubmissionResponse.status, 202);
+}
+
+/**
+ * Fetch prometheus metrics, parse, and return the result
+ * @param {IndexerMetricsCollector} collector
+ * @param {import("ava").ExecutionContext<unknown>} t
+ */
+async function fetchMetrics(collector, t) {
+  const metricsResponse = await collector.fetch(
+    new Request("https://example.com/metrics")
+  );
+  t.is(metricsResponse.status, 200);
+  const metricsResponseText = await metricsResponse.text();
+  t.assert(
+    metricsResponseText.toLowerCase().includes("histogram"),
+    "expected metrics response text to contain histogram"
+  );
+  return metricsResponseText;
+}
+
 test("can send event IndexerNotified events to IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
   const collector = new IndexerMetricsCollector({ storage });
@@ -46,16 +114,11 @@ test("can send event IndexerNotified events to IndexerMetricsCollector and then 
   const eventSubmissionResponse = await collector.fetch(eventSubmissionRequest);
   t.is(eventSubmissionResponse.status, 202);
   // fetch metrics
-  const metricsResponse = await collector.fetch(
-    new Request("https://example.com/metrics")
-  );
-  t.is(metricsResponse.status, 200);
-  const metricsResponseText = await metricsResponse.text();
+  const metricsResponseText = await fetchMetrics(collector, t);
   t.assert(
     metricsResponseText.toLowerCase().includes("histogram"),
     "expected metrics response text to contain histogram"
   );
-  // todo - ensure this has serialized prometheus metrics like we'd expect
   const parsedMetrics = parsePrometheus(metricsResponseText);
   const ipfsIndexerNotified = parsedMetrics.find(
     (m) => m.name === "file_size_bytes"
@@ -96,11 +159,7 @@ test("can send event multiple IndexerNotified events to multiple IndexerMetricsC
 
   // fetch metrics
   const collector3 = new IndexerMetricsCollector({ storage });
-  const metricsResponse = await collector3.fetch(
-    new Request("https://example.com/metrics")
-  );
-  t.is(metricsResponse.status, 200);
-  const metricsResponseText = await metricsResponse.text();
+  const metricsResponseText = await fetchMetrics(collector3, t);
   t.assert(
     metricsResponseText.toLowerCase().includes("histogram"),
     "expected metrics response text to contain histogram"
@@ -139,11 +198,7 @@ test("can send event multiple IndexerCompleted events to multiple IndexerMetrics
 
   // fetch metrics
   const collector2 = new IndexerMetricsCollector({ storage });
-  const metricsResponse = await collector2.fetch(
-    new Request("https://example.com/metrics")
-  );
-  t.is(metricsResponse.status, 200);
-  const metricsResponseText = await metricsResponse.text();
+  const metricsResponseText = await fetchMetrics(collector2, t);
   t.assert(
     metricsResponseText.toLowerCase().includes("histogram"),
     "expected metrics response text to contain histogram"
