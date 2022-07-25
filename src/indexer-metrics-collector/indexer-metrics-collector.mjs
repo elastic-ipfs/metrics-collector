@@ -97,11 +97,13 @@ export class IndexerMetricsCollector {
         },
       };
       if (env && hasOwnProperty(env, "CLIENTS")) {
+        console.debug("env.CLIENTS", env.CLIENTS);
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const parsed = JSON.parse(String(env.CLIENTS));
         if (!isValid({ schema: clientsSchema }, parsed)) {
           throw new Error("unable to parse env.CLIENTS as ClientsPolicy");
         }
+        console.debug("envTo.clients returning", parsed);
         return parsed;
       }
       return {};
