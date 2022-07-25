@@ -218,7 +218,7 @@ export class IndexerMetricsCollector {
     }
     const { user, password } = parsedBasicAuth;
     if (!(user in clients)) {
-      console.debug("unknown user", user);
+      console.debug("unknown user", user, Object.keys(clients));
       return false;
     }
     if (!clients[user].passwords.includes(password)) {
