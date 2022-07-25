@@ -10,19 +10,49 @@ import parsePrometheus from "parse-prometheus-text-format";
 import assert from "node:assert";
 import { DurableObjectStorage } from "@miniflare/durable-objects";
 import { MemoryStorage } from "@miniflare/storage-memory";
+import { basicAuthHeaderValue } from "./basic-auth.js";
 
 const exampleImageUri =
   "https://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy.ipfs.nftstorage.link/";
 
+/** @type {import("./indexer-metrics-collector.mjs").ClientsPolicy} */
+const exampleClientsPolicy = {
+  eventPoster: {
+    passwords: ["foo"],
+    capabilities: ["postEvent"],
+  },
+};
+
+test("POST /events responds with 401 when Not Authorized", async (t) => {
+  const collector = new IndexerMetricsCollector({
+    storage: new DurableObjectStorage(new MemoryStorage()),
+  });
+  const eventSubmissionResponse = await collector.fetch(
+    new Request("https://example.com/events", {
+      method: "post",
+      body: JSON.stringify(generate(IndexerCompleted.schema)),
+    })
+  );
+  t.is(eventSubmissionResponse.status, 401);
+});
+
 test("can send IndexerCompleted event to IndexerMetricsCollector", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector = new IndexerMetricsCollector({ storage });
+  const collector = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
   const event1 = generate(IndexerCompleted.schema);
   // submit an event
   const eventSubmissionRequest = new Request("https://example.com/events", {
     method: "post",
     body: JSON.stringify(event1),
     headers: {
+      authorization: basicAuthHeaderValue(
+        "eventPoster",
+        exampleClientsPolicy.eventPoster.passwords[0]
+      ),
       "content-type": "application/json",
     },
   });
@@ -39,11 +69,19 @@ test("can provide defaultPrometheusLabels to IndexerMetricsCollector constructor
       storage,
     },
     undefined,
+    exampleClientsPolicy,
     undefined,
     undefined,
     defaultPrometheusLabels
   );
-  await postSampleEvents(collector, t);
+  await postSampleEvents(
+    collector,
+    basicAuthHeaderValue(
+      "eventPoster",
+      exampleClientsPolicy.eventPoster.passwords[0]
+    ),
+    t
+  );
   const metricsText = await fetchMetrics(collector, t);
   // parsePrometheus wont actually show the labels even if they're there.
   // so we'll assert they're in there via regex on the unparsed prometheus-text-format string
@@ -63,9 +101,10 @@ test("can provide defaultPrometheusLabels to IndexerMetricsCollector constructor
 /**
  * Send at least one event to IndexerMetricsCollector
  * @param {IndexerMetricsCollector} collector
+ * @param {string} authorization - http authorization header value
  * @param {import("ava").ExecutionContext<unknown>} t
  */
-async function postSampleEvents(collector, t) {
+async function postSampleEvents(collector, authorization, t) {
   const event1 = generate(IndexerNotified.schema);
 
   // submit an event
@@ -74,6 +113,7 @@ async function postSampleEvents(collector, t) {
     body: JSON.stringify(event1),
     headers: {
       "content-type": "application/json",
+      authorization,
     },
   });
   const eventSubmissionResponse = await collector.fetch(eventSubmissionRequest);
@@ -98,17 +138,24 @@ async function fetchMetrics(collector, t) {
   return metricsResponseText;
 }
 
-test("can send event IndexerNotified events to IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
+test("can send IndexerNotified events to IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector = new IndexerMetricsCollector({ storage });
+  const collector = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
   const event1 = generate(IndexerNotified.schema);
-
   // submit an event
   const eventSubmissionRequest = new Request("https://example.com/events", {
     method: "post",
     body: JSON.stringify(event1),
     headers: {
       "content-type": "application/json",
+      authorization: basicAuthHeaderValue(
+        "eventPoster",
+        exampleClientsPolicy.eventPoster.passwords[0]
+      ),
     },
   });
   const eventSubmissionResponse = await collector.fetch(eventSubmissionRequest);
@@ -129,9 +176,13 @@ test("can send event IndexerNotified events to IndexerMetricsCollector and then 
   t.is(ipfsIndexerNotified?.metrics[0].count, "1");
 });
 
-test("can send event multiple IndexerNotified events to multiple IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
+test("can send multiple IndexerNotified events to multiple IndexerMetricsCollector and then request file_size_bytes metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector1 = new IndexerMetricsCollector({ storage });
+  const collector1 = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
   // submit an event1
   const eventSubmissionResponse1 = await collector1.fetch(
     new Request("https://example.com/events", {
@@ -139,19 +190,31 @@ test("can send event multiple IndexerNotified events to multiple IndexerMetricsC
       body: JSON.stringify(generate(IndexerNotified.schema)),
       headers: {
         "content-type": "application/json",
+        authorization: basicAuthHeaderValue(
+          "eventPoster",
+          exampleClientsPolicy.eventPoster.passwords[0]
+        ),
       },
     })
   );
   t.is(eventSubmissionResponse1.status, 202);
 
   // submit an event2
-  const collector2 = new IndexerMetricsCollector({ storage });
+  const collector2 = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
   const eventSubmissionResponse2 = await collector2.fetch(
     new Request("https://example.com/events", {
       method: "post",
       body: JSON.stringify(generate(IndexerNotified.schema)),
       headers: {
         "content-type": "application/json",
+        authorization: basicAuthHeaderValue(
+          "eventPoster",
+          exampleClientsPolicy.eventPoster.passwords[0]
+        ),
       },
     })
   );
@@ -174,9 +237,13 @@ test("can send event multiple IndexerNotified events to multiple IndexerMetricsC
   t.is(ipfsIndexerNotified?.metrics[0].count, "2");
 });
 
-test("can send event multiple IndexerCompleted events to multiple IndexerMetricsCollector and then request indexing_duration_seconds metrics", async (t) => {
+test("can send multiple IndexerCompleted events to multiple IndexerMetricsCollector and then request indexing_duration_seconds metrics", async (t) => {
   const storage = new DurableObjectStorage(new MemoryStorage());
-  const collector1 = new IndexerMetricsCollector({ storage });
+  const collector1 = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
   const now = new Date();
   const oneMinuteFromNow = new Date(Number(now) + 60 * 1000);
   /** @type {IndexerCompleted} */
@@ -191,6 +258,10 @@ test("can send event multiple IndexerCompleted events to multiple IndexerMetrics
       body: JSON.stringify(indexerCompletedEvent),
       headers: {
         "content-type": "application/json",
+        authorization: basicAuthHeaderValue(
+          "eventPoster",
+          exampleClientsPolicy.eventPoster.passwords[0]
+        ),
       },
     })
   );

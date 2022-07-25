@@ -2,7 +2,6 @@ import test from "ava";
 import { Miniflare } from "miniflare";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { IndexerNotified } from "../indexer-events/indexer-events.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,18 +44,9 @@ test("can test indexer-metrics-collector with miniflare", async (t) => {
 
   // test sending an event
   const eventSubmissionResponse = await mf.dispatchFetch(
-    "http://localhost:8787/events",
-    {
-      method: "post",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(
-        new IndexerNotified("https://dag.house", 1, new Date())
-      ),
-    }
+    "http://localhost:8787"
   );
-  t.is(eventSubmissionResponse.status, 202);
+  t.is(eventSubmissionResponse.status, 200);
 });
 
 test("makes use of PROMETHEUS_DEFAULT_LABELS env var", async (t) => {
