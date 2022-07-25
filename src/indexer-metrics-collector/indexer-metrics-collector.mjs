@@ -251,6 +251,7 @@ export class IndexerMetricsCollector {
         );
       }
       console.debug("authorizationMiddleware", {
+        env: this.env,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         CLIENTS:
           typeof this.env === "object" &&
