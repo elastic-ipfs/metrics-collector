@@ -56,6 +56,7 @@ export class IndexerMetricsCollector {
     )
   ) {
     const storage = state.storage;
+    this.env = env;
     this.storage = storage;
     this.indexingDurationSecondsStorageKey = indexingDurationSecondsStorageKey;
     this.fileSizeHistogramStorageKey = fileSizeHistogramStorageKey;
@@ -249,6 +250,16 @@ export class IndexerMetricsCollector {
           }
         );
       }
+      console.debug("authorizationMiddleware", {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        CLIENTS:
+          typeof this.env === "object" &&
+          this.env &&
+          hasOwnProperty(this.env, "CLIENTS")
+            ? this.env.CLIENTS
+            : undefined,
+        envToClients: IndexerMetricsCollector.envTo.clients(this.env),
+      });
       if (!(await hasCapability(authorization, requiredCapability))) {
         return new Response(
           "provided authorization does not allow required capability",
