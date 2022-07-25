@@ -21,9 +21,13 @@ const exampleClientsPolicy = {
     passwords: ["foo"],
     capabilities: ["postEvent"],
   },
+  metricsScraper: {
+    passwords: ["bar"],
+    capabilities: ["getMetrics"],
+  },
 };
 
-test("POST /events responds with 401 when Not Authorized", async (t) => {
+test("POST /events responds with 401 when no authorization in request", async (t) => {
   const collector = new IndexerMetricsCollector({
     storage: new DurableObjectStorage(new MemoryStorage()),
   });
@@ -34,6 +38,36 @@ test("POST /events responds with 401 when Not Authorized", async (t) => {
     })
   );
   t.is(eventSubmissionResponse.status, 401);
+});
+
+test("GET /metrics responds with 401 when no authorization in request", async (t) => {
+  const collector = new IndexerMetricsCollector({
+    storage: new DurableObjectStorage(new MemoryStorage()),
+  });
+  const eventSubmissionResponse = await collector.fetch(
+    new Request("https://example.com/metrics", {
+      method: "get",
+    })
+  );
+  t.is(eventSubmissionResponse.status, 401);
+});
+
+test("GET /metrics responds with 403 when authorization is provided without getMetrics capability", async (t) => {
+  const collector = new IndexerMetricsCollector({
+    storage: new DurableObjectStorage(new MemoryStorage()),
+  });
+  const eventSubmissionResponse = await collector.fetch(
+    new Request("https://example.com/metrics", {
+      method: "get",
+      headers: {
+        authorization: basicAuthHeaderValue(
+          "eventPoster",
+          exampleClientsPolicy.eventPoster.passwords[0]
+        ),
+      },
+    })
+  );
+  t.is(eventSubmissionResponse.status, 403);
 });
 
 test("can send IndexerCompleted event to IndexerMetricsCollector", async (t) => {
@@ -82,7 +116,14 @@ test("can provide defaultPrometheusLabels to IndexerMetricsCollector constructor
     ),
     t
   );
-  const metricsText = await fetchMetrics(collector, t);
+  const metricsText = await fetchMetrics(
+    collector,
+    basicAuthHeaderValue(
+      "metricsScraper",
+      exampleClientsPolicy.metricsScraper.passwords[0]
+    ),
+    t
+  );
   // parsePrometheus wont actually show the labels even if they're there.
   // so we'll assert they're in there via regex on the unparsed prometheus-text-format string
   t.is(
@@ -93,8 +134,19 @@ test("can provide defaultPrometheusLabels to IndexerMetricsCollector constructor
 
   // we also want to make sure that these labels are specific to the collector.
   // i.e. another collector made from same storage should not have the same labels in its metrics
-  const collector2 = new IndexerMetricsCollector({ storage });
-  const metricsText2 = await fetchMetrics(collector2, t);
+  const collector2 = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
+  const metricsText2 = await fetchMetrics(
+    collector2,
+    basicAuthHeaderValue(
+      "metricsScraper",
+      exampleClientsPolicy.metricsScraper.passwords[0]
+    ),
+    t
+  );
   t.is(metricsText2.match(labelsPromTextPattern), null);
 });
 
@@ -123,11 +175,16 @@ async function postSampleEvents(collector, authorization, t) {
 /**
  * Fetch prometheus metrics, parse, and return the result
  * @param {IndexerMetricsCollector} collector
+ * @param {string} authorization - http authorization header value
  * @param {import("ava").ExecutionContext<unknown>} t
  */
-async function fetchMetrics(collector, t) {
+async function fetchMetrics(collector, authorization, t) {
   const metricsResponse = await collector.fetch(
-    new Request("https://example.com/metrics")
+    new Request("https://example.com/metrics", {
+      headers: {
+        authorization,
+      },
+    })
   );
   t.is(metricsResponse.status, 200);
   const metricsResponseText = await metricsResponse.text();
@@ -161,7 +218,14 @@ test("can send IndexerNotified events to IndexerMetricsCollector and then reques
   const eventSubmissionResponse = await collector.fetch(eventSubmissionRequest);
   t.is(eventSubmissionResponse.status, 202);
   // fetch metrics
-  const metricsResponseText = await fetchMetrics(collector, t);
+  const metricsResponseText = await fetchMetrics(
+    collector,
+    basicAuthHeaderValue(
+      "metricsScraper",
+      exampleClientsPolicy.metricsScraper.passwords[0]
+    ),
+    t
+  );
   t.assert(
     metricsResponseText.toLowerCase().includes("histogram"),
     "expected metrics response text to contain histogram"
@@ -221,8 +285,19 @@ test("can send multiple IndexerNotified events to multiple IndexerMetricsCollect
   t.is(eventSubmissionResponse2.status, 202);
 
   // fetch metrics
-  const collector3 = new IndexerMetricsCollector({ storage });
-  const metricsResponseText = await fetchMetrics(collector3, t);
+  const collector3 = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
+  const metricsResponseText = await fetchMetrics(
+    collector3,
+    basicAuthHeaderValue(
+      "metricsScraper",
+      exampleClientsPolicy.metricsScraper.passwords[0]
+    ),
+    t
+  );
   t.assert(
     metricsResponseText.toLowerCase().includes("histogram"),
     "expected metrics response text to contain histogram"
@@ -268,8 +343,19 @@ test("can send multiple IndexerCompleted events to multiple IndexerMetricsCollec
   t.is(eventSubmissionResponse1.status, 202);
 
   // fetch metrics
-  const collector2 = new IndexerMetricsCollector({ storage });
-  const metricsResponseText = await fetchMetrics(collector2, t);
+  const collector2 = new IndexerMetricsCollector(
+    { storage },
+    undefined,
+    exampleClientsPolicy
+  );
+  const metricsResponseText = await fetchMetrics(
+    collector2,
+    basicAuthHeaderValue(
+      "metricsScraper",
+      exampleClientsPolicy.metricsScraper.passwords[0]
+    ),
+    t
+  );
   t.assert(
     metricsResponseText.toLowerCase().includes("histogram"),
     "expected metrics response text to contain histogram"

@@ -48,7 +48,7 @@ export class IndexerMetricsCollector {
   constructor(
     state,
     env,
-    clients = {},
+    clients = IndexerMetricsCollector.envTo.clients(env),
     fileSizeHistogramStorageKey = "fileSize/histogram",
     indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram",
     defaultPrometheusLabels = IndexerMetricsCollector.envTo.defaultPrometheusLabels(
@@ -70,6 +70,42 @@ export class IndexerMetricsCollector {
    * Methods for parsing things out of the env vars passed to the constructor
    */
   static envTo = {
+    /**
+     * @param {unknown} env
+     * @returns {ClientsPolicy}
+     */
+    clients(env) {
+      /** @type import('ajv').JSONSchemaType<ClientsPolicy> */
+      const clientsSchema = {
+        type: "object",
+        required: [],
+        additionalProperties: {
+          type: "object",
+          required: ["capabilities", "passwords"],
+          capabilities: {
+            type: "array",
+            items: {
+              enum: ["postEvent", "getMetrics"],
+            },
+          },
+          passwords: {
+            type: "array",
+            items: {
+              type: "string",
+            },
+          },
+        },
+      };
+      if (env && hasOwnProperty(env, "CLIENTS")) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const parsed = JSON.parse(String(env.CLIENTS));
+        if (!isValid({ schema: clientsSchema }, parsed)) {
+          throw new Error("unable to parse env.CLIENTS as ClientsPolicy");
+        }
+        return parsed;
+      }
+      return {};
+    },
     /**
      * @param {unknown} env
      * @returns {Record<string,string>}
@@ -154,7 +190,14 @@ export class IndexerMetricsCollector {
       ),
       PostEventsRoute(metrics, (m) => this.storeMetrics(this.storage, m))
     );
-    router.get("/metrics", GetMetricsRoute(metrics));
+    router.get(
+      "/metrics",
+      this.createAuthorizationMiddleware(
+        "getMetrics",
+        this.hasCapability.bind(this, clients)
+      ),
+      GetMetricsRoute(metrics)
+    );
     return router;
   }
 

@@ -2,6 +2,7 @@ import test from "ava";
 import { Miniflare } from "miniflare";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { basicAuthHeaderValue } from "./basic-auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -10,6 +11,20 @@ const examplePrometheusLabels = {
   pattern: /a="A",b="B"/g,
   env: {
     PROMETHEUS_DEFAULT_LABELS: JSON.stringify({ a: "A", b: "B" }),
+  },
+};
+
+/** @type {import("./indexer-metrics-collector.mjs").ClientsPolicy} */
+const exampleClientsPolicy = {
+  userA: {
+    passwords: ["a"],
+    capabilities: ["postEvent", "getMetrics"],
+  },
+};
+const exampleClients = {
+  clients: exampleClientsPolicy,
+  env: {
+    CLIENTS: JSON.stringify(exampleClientsPolicy),
   },
 };
 
@@ -50,10 +65,23 @@ test("can test indexer-metrics-collector with miniflare", async (t) => {
 });
 
 test("makes use of PROMETHEUS_DEFAULT_LABELS env var", async (t) => {
-  const mf = useMiniflare(examplePrometheusLabels.env);
-  const metricsText = await mf
-    .dispatchFetch("http://localhost:8787/metrics")
-    .then((r) => r.text());
+  const mf = useMiniflare({
+    ...examplePrometheusLabels.env,
+    ...exampleClients.env,
+  });
+  const metricsResponse = await mf.dispatchFetch(
+    "http://localhost:8787/metrics",
+    {
+      headers: {
+        authorization: basicAuthHeaderValue(
+          "userA",
+          exampleClients.clients.userA.passwords[0]
+        ),
+      },
+    }
+  );
+  t.is(metricsResponse.status, 200);
+  const metricsText = await metricsResponse.text();
   t.is(
     metricsText.match(examplePrometheusLabels.pattern)?.length,
     // This will be 28 unless we change the bucketing or add metrics
