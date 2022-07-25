@@ -9,6 +9,7 @@ import { HistogramSerializer } from "../prom-client-serializer/prom-client-seria
 import { Histogram, linearBuckets, Registry } from "./prometheus.js";
 import assert from "assert";
 import { hasOwnProperty } from "../object.js";
+import { basicAuthentication } from "./basic-auth.js";
 
 /**
  * buckets for bytes to use for fileSize histogram.
@@ -23,6 +24,14 @@ const DEFAULT_FILESIZE_BYTES_BUCKETS = [
 ];
 
 /**
+ * @typedef {"postEvent"|"getMetrics"} IndexerMetricsCollectorCapability
+ */
+
+/**
+ * @typedef {Record<string, { passwords: string[], capabilities: IndexerMetricsCollectorCapability[]}>} ClientsPolicy
+ */
+
+/**
  * @typedef {import('@miniflare/durable-objects').DurableObjectStorage} DurableObjectStorage
  */
 
@@ -34,10 +43,12 @@ export class IndexerMetricsCollector {
    * @param {string} fileSizeHistogramStorageKey - storage key at which to store fileSize histogram
    * @param {string} indexingDurationSecondsStorageKey - storage key at which to store indexingDurationSeconds histogram
    * @param {Record<string,string>} defaultPrometheusLabels - object with key/values that should be on all prometheus metrics (e.g. 'instance', 'jobName)
+   * @param {ClientsPolicy} clients
    */
   constructor(
     state,
     env,
+    clients = IndexerMetricsCollector.envTo.clients(env),
     fileSizeHistogramStorageKey = "fileSize/histogram",
     indexingDurationSecondsStorageKey = "indexingDurationSeconds/histogram",
     defaultPrometheusLabels = IndexerMetricsCollector.envTo.defaultPrometheusLabels(
@@ -52,13 +63,49 @@ export class IndexerMetricsCollector {
       storage,
       defaultPrometheusLabels
     );
-    this.router = this.createRouter(metrics);
+    this.router = this.createRouter(metrics, clients);
   }
 
   /**
    * Methods for parsing things out of the env vars passed to the constructor
    */
   static envTo = {
+    /**
+     * @param {unknown} env
+     * @returns {ClientsPolicy}
+     */
+    clients(env) {
+      /** @type import('ajv').JSONSchemaType<ClientsPolicy> */
+      const clientsSchema = {
+        type: "object",
+        required: [],
+        additionalProperties: {
+          type: "object",
+          required: ["capabilities", "passwords"],
+          capabilities: {
+            type: "array",
+            items: {
+              enum: ["postEvent", "getMetrics"],
+            },
+          },
+          passwords: {
+            type: "array",
+            items: {
+              type: "string",
+            },
+          },
+        },
+      };
+      if (env && hasOwnProperty(env, "CLIENTS")) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const parsed = JSON.parse(String(env.CLIENTS));
+        if (!isValid({ schema: clientsSchema }, parsed)) {
+          throw new Error("unable to parse env.CLIENTS as ClientsPolicy");
+        }
+        return parsed;
+      }
+      return {};
+    },
     /**
      * @param {unknown} env
      * @returns {Record<string,string>}
@@ -127,19 +174,89 @@ export class IndexerMetricsCollector {
 
   /**
    * @param {Promise<IndexerMetricsPrometheusContext>} metrics
+   * @param {ClientsPolicy} clients
    * @returns {Router}
    */
-  createRouter(metrics) {
+  createRouter(metrics, clients) {
     const router = Router();
     router.get("/", () => {
       return new Response("indexer-metrics-collector", { status: 200 });
     });
     router.post(
       "/events",
+      this.createAuthorizationMiddleware(
+        "postEvent",
+        this.hasCapability.bind(this, clients)
+      ),
       PostEventsRoute(metrics, (m) => this.storeMetrics(this.storage, m))
     );
-    router.get("/metrics", GetMetricsRoute(metrics));
+    router.get(
+      "/metrics",
+      this.createAuthorizationMiddleware(
+        "getMetrics",
+        this.hasCapability.bind(this, clients)
+      ),
+      GetMetricsRoute(metrics)
+    );
     return router;
+  }
+
+  /**
+   * Check whether the provided authorization string implies having a capability
+   * @param {ClientsPolicy} clients
+   * @param {string} authorization
+   * @param {IndexerMetricsCollectorCapability} capability
+   */
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async hasCapability(clients, authorization, capability) {
+    let parsedBasicAuth;
+    try {
+      parsedBasicAuth = basicAuthentication(authorization);
+    } catch (error) {
+      console.debug("error parsing authorization as basic auth", error);
+      return false;
+    }
+    const { user, password } = parsedBasicAuth;
+    if (!(user in clients)) {
+      console.debug("unknown user", user);
+      return false;
+    }
+    if (!clients[user].passwords.includes(password)) {
+      console.debug("wrong password for user", user);
+      return false;
+    }
+    return clients[user].capabilities.includes(capability);
+  }
+
+  /**
+   *
+   * @param {IndexerMetricsCollectorCapability} requiredCapability
+   * @param {(authorization: string, capability: IndexerMetricsCollectorCapability) => Promise<boolean>} hasCapability
+   */
+  createAuthorizationMiddleware(requiredCapability, hasCapability) {
+    /**
+     * @param {Request} request
+     */
+    const authorizationMiddleware = async (request) => {
+      const authorization = request.headers.get("authorization");
+      if (!authorization) {
+        return new Response(
+          "please provide authorization via Authorization request header",
+          {
+            status: 401,
+          }
+        );
+      }
+      if (!(await hasCapability(authorization, requiredCapability))) {
+        return new Response(
+          "provided authorization does not allow required capability",
+          {
+            status: 403,
+          }
+        );
+      }
+    };
+    return authorizationMiddleware;
   }
 
   /**
