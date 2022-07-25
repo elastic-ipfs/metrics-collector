@@ -98,13 +98,11 @@ export class IndexerMetricsCollector {
         },
       };
       if (env && hasOwnProperty(env, "CLIENTS")) {
-        console.debug("env.CLIENTS", env.CLIENTS);
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const parsed = JSON.parse(String(env.CLIENTS));
         if (!isValid({ schema: clientsSchema }, parsed)) {
           throw new Error("unable to parse env.CLIENTS as ClientsPolicy");
         }
-        console.debug("envTo.clients returning", parsed);
         return parsed;
       }
       return {};
@@ -250,17 +248,6 @@ export class IndexerMetricsCollector {
           }
         );
       }
-      console.debug("authorizationMiddleware", {
-        env: this.env,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        CLIENTS:
-          typeof this.env === "object" &&
-          this.env &&
-          hasOwnProperty(this.env, "CLIENTS")
-            ? this.env.CLIENTS
-            : undefined,
-        envToClients: IndexerMetricsCollector.envTo.clients(this.env),
-      });
       if (!(await hasCapability(authorization, requiredCapability))) {
         return new Response(
           "provided authorization does not allow required capability",
