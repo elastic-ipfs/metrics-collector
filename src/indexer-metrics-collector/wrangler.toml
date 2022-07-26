@@ -12,6 +12,13 @@ bindings = [
 tag = "v1" # Should be unique for each entry
 new_classes = ["IndexerMetricsCollector"]
 
+[env.staging.vars]
+PROMETHEUS_DEFAULT_LABELS = '{}'
+[env.staging.durable_objects]
+bindings = [
+    { name = "IndexerMetricsCollector", class_name = "IndexerMetricsCollector" }
+]
+
 [env.production.vars]
 PROMETHEUS_DEFAULT_LABELS = '{}'
 [env.production.durable_objects]

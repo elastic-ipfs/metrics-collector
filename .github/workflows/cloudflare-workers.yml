@@ -6,9 +6,36 @@ on:
       - main
 
 jobs:
-  deploy:
+  deploy-staging:
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Deploy to staging
+    environment:
+      name: cloudflare-dag.house
+      url: https://indexer-metrics-collector-staging.protocol-labs.workers.dev
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
+      - name: Publish
+        uses: cloudflare/wrangler-action@2.0.0
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          workingDirectory: 'src/indexer-metrics-collector'
+          environment: staging
+          secrets: |
+            CLIENTS
+        env:
+          CLIENTS: "${{ secrets.CLIENTS }}"
+  deploy-production:
+    runs-on: ubuntu-latest
+    name: Deploy to production
     environment:
       name: cloudflare-dag.house
       url: https://indexer-metrics-collector-production.protocol-labs.workers.dev
