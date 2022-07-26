@@ -13,7 +13,7 @@ tag = "v1" # Should be unique for each entry
 new_classes = ["IndexerMetricsCollector"]
 
 [env.production.vars]
-PROMETHEUS_DEFAULT_LABELS = '{"job":"indexer-metrics-collector","instance":"indexer-metrics-collector.protocol-labs.workers.dev"}'
+PROMETHEUS_DEFAULT_LABELS = '{}'
 [env.production.durable_objects]
 bindings = [
     { name = "IndexerMetricsCollector", class_name = "IndexerMetricsCollector" }
