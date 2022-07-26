@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy to staging
     environment:
-      name: cloudflare-dag.house
+      name: cloudflare-dag.house-staging
       url: https://indexer-metrics-collector-staging.protocol-labs.workers.dev
     steps:
       - uses: actions/checkout@v2
