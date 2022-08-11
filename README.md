@@ -4,6 +4,9 @@ metrics-collector collects events about what happens inside [elastic-ipfs](), ca
 
 More about the motivation to make this can be found in [Elastic Provider Events](https://hackmd.io/7FHjMKZ2TgGycAvapvBqqw).
 
+[![metrics-collector diagram](./docs/diagrams/metrics-collector.png)](./docs/diagrams/metrics-collector.png)
+<!-- https://docs.google.com/presentation/d/19ZuzApQ6y6-2-5TchJcaIXwzeJ0IFGQbEY2XnMLiTI8/edit?usp=sharing -->
+
 ## What
 
 ### [indexer-events](./src/indexer-events/)
